@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <tl/expected.hpp>
 #include <string>
-#include <libpng16/png.h>
+#include <png.h>
 
 namespace MR
 {

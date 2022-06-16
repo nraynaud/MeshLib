@@ -8,7 +8,7 @@
 #include <string>
 
 #ifndef __EMSCRIPTEN__
-#include <libpng16/png.h>
+#include <png.h>
 #include <turbojpeg.h>
 #endif
 

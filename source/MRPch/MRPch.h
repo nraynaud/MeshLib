@@ -26,6 +26,8 @@
 #include <boost/signals2/signal.hpp>
 #pragma warning(pop)
 
+#ifndef __EMSCRIPTEN__
+
 #pragma warning(push)
 #pragma warning(disable: 4515)
 #include <gdcmImageReader.h>
@@ -33,6 +35,9 @@
 #pragma warning(pop)
 
 #include "MROpenvdb.h"
+
+#endif // __EMSCRIPTEN__
+
 #include "MRJson.h"
 #include "MRSpdlog.h"
 
@@ -66,10 +71,11 @@
 #include <cpr/cpr.h>
 #pragma warning(pop)
 
-#include <libpng16/png.h>
+#include <png.h>
 
 #include "OpenCTM/openctm.h"
 
+#ifndef __EMSCRIPTEN__
 #pragma warning(push)
 #pragma warning(disable:4191) //'reinterpret_cast': unsafe conversion from 'PyObject *(__cdecl *)(PyObject *,PyObject *,PyObject *)' to 'void (__cdecl *)(void)'
 #pragma warning(disable:4355) //'this': used in base member initializer list
@@ -80,6 +86,7 @@
 #include <pybind11/stl_bind.h>
 #include <pybind11/numpy.h>
 #pragma warning(pop)
+#endif
 
 #include <algorithm>
 #include <array>

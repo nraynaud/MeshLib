@@ -3,11 +3,12 @@
 #include "MREdgeIterator.h"
 #include "MRRingIterator.h"
 #include "MRTimer.h"
+#include "MRTriMath.h"
 
 namespace MR
 {
 
-bool checkDeloneQuadrangle( const Vector3d& a, const Vector3d& b, const Vector3d& c, const Vector3d& d )
+bool checkDeloneQuadrangle( const Vector3d& a, const Vector3d& b, const Vector3d& c, const Vector3d& d, double maxAngleChange )
 {
     auto dir = []( const auto& p, const auto& q, const auto& r )
     {

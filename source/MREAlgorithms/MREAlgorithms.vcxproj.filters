@@ -42,9 +42,6 @@
     <ClCompile Include="MREPointCloudTriangulationHelpers.cpp">
       <Filter>Triangulation</Filter>
     </ClCompile>
-    <ClCompile Include="MREFillHoleMetrics.cpp">
-      <Filter>Triangulation</Filter>
-    </ClCompile>
     <ClCompile Include="MREMeshDecimate.cpp">
       <Filter>Decimation</Filter>
     </ClCompile>
@@ -88,9 +85,6 @@
       <Filter>Triangulation</Filter>
     </ClInclude>
     <ClInclude Include="MREPointCloudTriangulationHelpers.h">
-      <Filter>Triangulation</Filter>
-    </ClInclude>
-    <ClInclude Include="MREFillHoleMetrics.h">
       <Filter>Triangulation</Filter>
     </ClInclude>
     <ClInclude Include="MREMeshDecimate.h">

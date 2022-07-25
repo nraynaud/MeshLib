@@ -8,7 +8,7 @@
 namespace MR
 {
 
-bool checkDeloneQuadrangle( const Vector3d& a, const Vector3d& b, const Vector3d& c, const Vector3d& d, double maxAngleChange )
+bool checkDeloneQuadrangle( const Vector3d& a, const Vector3d& b, const Vector3d& c, const Vector3d& d )
 {
     auto dir = []( const auto& p, const auto& q, const auto& r )
     {

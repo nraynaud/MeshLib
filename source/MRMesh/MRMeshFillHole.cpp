@@ -122,8 +122,8 @@ void getTriangulationWeights( const MeshTopology& topology, const NewEdgesMap& m
         if ( weight > processedConn.weight )
             continue;
 
-        VertId aVert = topology.org( loop[proccessedConn.a] );
-        VertId bVert = topology.org( loop[proccessedConn.b] );
+        VertId aVert = topology.org( loop[processedConn.a] );
+        VertId bVert = topology.org( loop[processedConn.b] );
 
         if ( aVert == bVert )
             continue;
@@ -151,8 +151,8 @@ void getTriangulationWeights( const MeshTopology& topology, const NewEdgesMap& m
 
         if ( weight < processedConn.weight )
         {
-            proccessedConn.weight = weight;
-            proccessedConn.prevA = v; // In this case prevA describes chosen triangulation
+            processedConn.weight = weight;
+            processedConn.prevA = v; // In this case prevA describes chosen triangulation
         }
     }
 }

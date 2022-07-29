@@ -13,7 +13,7 @@ namespace MR
 namespace MeshBuilder
 {
 
-class MaxIdCalc 
+class MaxIdCalc
 {
 public:
     FaceId maxFaceId;
@@ -21,22 +21,22 @@ public:
 
     MaxIdCalc( const std::vector<Triangle> & tris ) : tris_( tris ) { }
     MaxIdCalc( MaxIdCalc & x, tbb::split ) : tris_( x.tris_ ) { }
-    void join( const MaxIdCalc & y ) 
-    { 
+    void join( const MaxIdCalc & y )
+    {
         maxFaceId = std::max( maxFaceId, y.maxFaceId );
         maxVertId = std::max( maxVertId, y.maxVertId );
     }
 
-    void operator()( const tbb::blocked_range<size_t> & r ) 
+    void operator()( const tbb::blocked_range<size_t> & r )
     {
-        for ( size_t i = r.begin(); i < r.end(); ++i ) 
+        for ( size_t i = r.begin(); i < r.end(); ++i )
         {
             const auto & t = tris_[i];
             maxFaceId = std::max( maxFaceId, t.f );
             maxVertId = std::max( { maxVertId, t.v[0], t.v[1], t.v[2] } );
         }
     }
-            
+
 public:
     const std::vector<Triangle> & tris_;
 };
@@ -246,7 +246,7 @@ MeshTopology fromFaceSoup( const std::vector<VertId> & verts, std::vector<FaceRe
         return res;
 
     // reserve enough elements for faces and vertices
-    auto maxFaceId = std::max_element( faces.begin(), faces.end(), 
+    auto maxFaceId = std::max_element( faces.begin(), faces.end(),
         []( const FaceRecord & a, const FaceRecord & b ) { return a.face < b.face; } )->face;
     auto maxVertId = *std::max_element( verts.begin(), verts.end() );
     res.faceResize( maxFaceId + 1 );
@@ -304,7 +304,7 @@ void addTriangles( MeshTopology & res, std::vector<VertId> & vertTriples,
         Triangle tri
         {
             vertTriples[3*t],
-            vertTriples[3*t+1], 
+            vertTriples[3*t+1],
             vertTriples[3*t+2],
             firstNewFace + t
         };
@@ -383,7 +383,7 @@ MeshTopology fromTriangles( const std::vector<Triangle> & tris, std::vector<Tria
     if ( tris.empty() )
         return {};
     MR_TIMER
-    
+
     // reserve enough elements for faces and vertices
     auto [maxFaceId, maxVertId] = computeMaxIds( tris );
 
@@ -460,9 +460,13 @@ MeshTopology fromTriangles( const std::vector<Triangle> & tris, std::vector<Tria
 struct IncidentVert {
     FaceId f; // to find triangle in triangleToVertices vector
     int cIdx = 0; // index of the central vertex in Triangle.v vector
-    VertId srcVert; // used only for sort to speed up all search 
+    VertId srcVert; // used only for sort to speed up all search
     // the vertices of the triangle can be upgraded, so no reason to store VertId!
-
+    IncidentVert()
+        : f( -1 )
+        , cIdx( -1 )
+        , srcVert( -1 )
+    {}
     IncidentVert( FaceId f, int cIdx, VertId srcVert )
         : f(f)
         , cIdx(cIdx)
@@ -477,15 +481,48 @@ struct PathOverIncidentVert {
     FaceToVerticesVector& faceToVertices;
     // all iterators in [vertexBegIt, vertexEndIt) must have the same central vertex
     std::vector<IncidentVert>::iterator vertexBegIt, vertexEndIt;
-    size_t lastUnvisitedIndex = 0; // pivot index. [vertexBegIt, vertexBegIt + lastUnvisitedIndex) - unvisited vertices
+    int lastUnvisitedIndex = 0; // pivot index. [vertexBegIt, vertexBegIt + lastUnvisitedIndex) - unvisited vertices
+    std::unordered_map<VertId, int> vertDegree;
 
     PathOverIncidentVert( FaceToVerticesVector& triangleToVertices,
                 std::vector<IncidentVert>& incidentItemsVector, size_t beg, size_t end )
         : faceToVertices( triangleToVertices )
         , vertexBegIt( incidentItemsVector.begin() + beg )
         , vertexEndIt( incidentItemsVector.begin() + end )
-        , lastUnvisitedIndex( end - beg )
-    {}
+        , lastUnvisitedIndex( static_cast<int>(end - beg) )
+    {
+        // filter duplicated triangles by moving to "visited" part of incidentItemsVector
+        for ( auto it = vertexBegIt; it < vertexBegIt + lastUnvisitedIndex; ++it )
+        {
+            const auto& vertices = faceToVertices[it->f];
+            VertId firstSrc = vertices[( it->cIdx + 1 ) % 3];
+            VertId secondSrc = vertices[( it->cIdx + 2 ) % 3];
+            for ( auto itTrg = it + 1; itTrg < vertexBegIt + lastUnvisitedIndex; ++itTrg )
+            {
+                const auto& verticesTrg = faceToVertices[itTrg->f];
+                VertId firstTrg = verticesTrg[( itTrg->cIdx + 1 ) % 3];
+                VertId secondTrg = verticesTrg[( itTrg->cIdx + 2 ) % 3];
+                if ( ( firstSrc == firstTrg && secondSrc == secondTrg ) ||
+                    ( firstSrc == secondTrg && secondSrc == firstTrg ) )
+                {
+                    --lastUnvisitedIndex;
+                    std::iter_swap( itTrg, vertexBegIt + lastUnvisitedIndex );
+                    --it; // to recheck
+                    break;
+                }
+            }
+        }
+        // count every vertex degree
+        for ( auto it = vertexBegIt; it < vertexBegIt + lastUnvisitedIndex; ++it )
+        {
+            const auto& vertices = faceToVertices[it->f];
+            for ( size_t i = 0; i < 3; ++i )
+            {
+                if ( i != it->cIdx )
+                    vertDegree[vertices[i]] += 1;
+            }
+        }
+    }
 
     // false if there are some unvisited vertices
     bool empty() const
@@ -499,10 +536,10 @@ struct PathOverIncidentVert {
         return faceToVertices[vertexBegIt->f][( vertexBegIt->cIdx + 1 ) % 3];
     }
 
-    // find incident unvisited vertex 
+    // find incident unvisited vertex
     VertId getNextIncidentVertex( VertId v )
     {
-        if ( lastUnvisitedIndex <= 0 )
+        if ( lastUnvisitedIndex <= 0 || !v.valid() )
             return VertId( -1 );
 
         for ( auto it = vertexBegIt; it < vertexBegIt + lastUnvisitedIndex; ++it )
@@ -529,6 +566,32 @@ struct PathOverIncidentVert {
 
         }
         return VertId( -1 );
+    }
+
+    // move triangles from "visited" part back to "unvisited"
+    void recoverUnvisited( std::vector<VertId>& path )
+    {
+        if ( path.size() < 2 )
+            return;
+
+        for ( auto i = 1; i < path.size(); ++i )
+        {
+            VertId first = path[i - 1];
+            VertId second = path[i];
+            for ( auto it = vertexBegIt + lastUnvisitedIndex; it < vertexEndIt; ++it )
+            {
+                const auto& vertices = faceToVertices[it->f];
+                int first_pos = ( it->cIdx + 1 ) % 3;
+                int second_pos = ( it->cIdx + 2 ) % 3;
+                if ( ( vertices[first_pos] == first && vertices[second_pos] == second ) ||
+                     ( vertices[second_pos] == first && vertices[first_pos] == second ) )
+                {
+                    std::iter_swap( it, vertexBegIt + lastUnvisitedIndex );
+                    ++lastUnvisitedIndex;
+                    break;
+                }
+            }
+        }
     }
 
     // duplicate the vertex around which the chain was found
@@ -561,6 +624,38 @@ struct PathOverIncidentVert {
                 }
             }
         }
+    }
+
+    // remove all vertices with degree 1 (recursively)
+    void processVerticesNotInCicle()
+    {
+        bool isFound = false;
+        do
+        {
+            isFound = false;
+            for ( const auto& vert2degree : vertDegree )
+            {
+                if ( vert2degree.second == 1 ) // found first vertex with degree == 1
+                {
+                    isFound = true;
+                    vertDegree[vert2degree.first] -= 1;
+                    auto neighbourVert = getNextIncidentVertex( vert2degree.first );
+                    // now we can delete the whole chain
+                    while ( neighbourVert.valid() )
+                    {
+                        vertDegree[neighbourVert] -= 1;
+                        if ( vertDegree[neighbourVert] == 1 )
+                        {
+                            vertDegree[neighbourVert] -= 1;
+                            neighbourVert = getNextIncidentVertex( neighbourVert );
+                        }
+                        else
+                            break;
+                    }
+                }
+            }
+        }
+        while ( isFound );
     }
 };
 
@@ -651,27 +746,79 @@ size_t duplicateNonManifoldVertices( std::vector<Triangle>& tris, std::vector<Ve
         posEnd = getIntervalEndIndex( incidentItemsVector, faceToVertices, posBegin );
         PathOverIncidentVert incidentItems( faceToVertices, incidentItemsVector, posBegin, posEnd );
 
-        size_t foundedPathCnt = 0;
+        // @todo remove debug
+        int x = incidentItems.vertexBegIt->srcVert;
+        --x;
+        ++x;
 
+        std::vector<VertId> allPathDebug;// = { currVertex, nextVertex };
+        std::vector<VertId> path;
+
+        incidentItems.processVerticesNotInCicle();
+        if (incidentItems.empty())
+            continue;
+
+        // step1: remove all intersected cycles
+        bool hasCycle = false;
+        do
+        {
+            hasCycle = false;
+            for ( const auto& vertexDegree : incidentItems.vertDegree )
+            {
+                if ( vertexDegree.second > 2 ) // non manifold -> one vertex of a cycle has degree > 2
+                {
+                    hasCycle = true;
+                    path = { vertexDegree.first };
+                    VertId nextVertex = incidentItems.getNextIncidentVertex( vertexDegree.first );
+                    while ( nextVertex.valid() )
+                    {
+                        // returned to already visited vertex. Now we can deduplicate this
+                        if ( std::find( path.begin(), path.end(), nextVertex ) != path.end() )
+                        {
+                            path.push_back( nextVertex );
+                            std::vector<VertId> closedPath;
+                            extractClosedPath( path, closedPath );
+
+                            incidentItems.vertDegree[nextVertex] += 2;
+                            for (auto& v : closedPath)
+                                incidentItems.vertDegree[v] -= 2;
+
+                            allPathDebug.insert( allPathDebug.end(), closedPath.begin(), closedPath.end() );
+                            incidentItems.duplicateVertex( closedPath, maxIndex, dups );
+                            ++duplicatedVerticesCnt;
+                            if (nextVertex == vertexDegree.first)
+                                break;
+                        }
+                        path.push_back( nextVertex );
+                        nextVertex = incidentItems.getNextIncidentVertex( nextVertex );
+                    }
+                    incidentItems.recoverUnvisited(path);
+                    incidentItems.processVerticesNotInCicle();
+                }
+            }
+        } while ( hasCycle );
+
+        // step2: leave only one cycle per vertex
+        size_t foundedPathCnt = 0;
         while ( !incidentItems.empty() )
         {
             VertId currVertex = incidentItems.getFirstVertex();
             VertId nextVertex = incidentItems.getNextIncidentVertex( currVertex );
-            
+
             assert( nextVertex.valid() );
 
-            std::vector<VertId> path = { currVertex, nextVertex };
+            path = { currVertex, nextVertex };
             while ( true )
             {
                 currVertex = nextVertex;
                 nextVertex = incidentItems.getNextIncidentVertex( currVertex );
 
                 // no next vertex - not connected sequences
-                if ( !nextVertex.valid() ) 
+                if ( !nextVertex.valid() )
                     break;
 
                 // returned to already visited vertex
-                if ( std::find(path.begin(), path.end(), nextVertex ) != path.end() )
+                if ( std::find( path.begin(), path.end(), nextVertex ) != path.end() )
                 {
                     // save only closed path and prepare for new search starting with non-manifold vertex
                     path.push_back( nextVertex );
@@ -685,7 +832,7 @@ size_t duplicateNonManifoldVertices( std::vector<Triangle>& tris, std::vector<Ve
                         ++duplicatedVerticesCnt;
                     }
                     ++foundedPathCnt;
-                    
+
                 }
                 path.push_back( nextVertex );
             }
@@ -718,7 +865,37 @@ MeshTopology fromTrianglesDuplicatingNonManifoldVertices( std::vector<Triangle> 
     }
     // full path
     std::vector<VertDuplication> localDups;
-    MeshBuilder::duplicateNonManifoldVertices( tris, &localDups );
+
+    {     // @todo remove debug
+        std::set<std::vector<int>> set_tr;
+        for ( size_t i = 0; i < tris.size(); ++i )
+        {
+            auto& t = tris[i];
+            std::vector<int> p = { int( t.v[0] ), int( t.v[1] ), int( t.v[2] ) };
+            //vec.push_back( p );
+            std::sort( p.begin(), p.end() );
+            if ( set_tr.find( p ) != set_tr.end() )
+            {
+                tris[i] = tris.back();
+                tris.pop_back();
+                --i;
+            }
+            else
+            {
+                set_tr.insert( p );
+            }
+        }
+
+        size_t cnt = 0;
+        size_t prev_size = 0;
+        do
+        {
+            ++cnt;
+            prev_size = localDups.size();
+            MeshBuilder::duplicateNonManifoldVertices( tris, &localDups );
+        } while ( prev_size != localDups.size() && cnt < 5 );
+    }
+    //MeshBuilder::duplicateNonManifoldVertices( tris, &localDups );
     const bool noDuplicates = localDups.empty();
     if ( dups )
         *dups = std::move( localDups );
@@ -729,7 +906,26 @@ MeshTopology fromTrianglesDuplicatingNonManifoldVertices( std::vector<Triangle> 
             *skippedTris = std::move( localSkippedTries );
         return res;
     }
-    res = fromTriangles( tris, skippedTris );
+    std::vector<Triangle> localSkippedTries2;
+    res = fromTriangles( tris, &localSkippedTries2 );
+    std::vector<std::vector<int>> vec;
+    std::set<std::vector<int>> unique;
+    std::set<std::vector<int>> dup;
+    for ( auto& t : localSkippedTries2 )
+    {
+        std::vector<int> p = { int( t.v[0] ), int( t.v[1] ), int( t.v[2] ) };
+        //vec.push_back( p );
+        std::sort( p.begin(), p.end() );
+        if ( dup.find( p ) == dup.end()  && unique.find(p) == unique.end())
+        {
+            unique.insert( p );
+        }
+        else
+        {
+            unique.erase( p );
+            dup.insert( p );
+        }
+    }
     return res;
 }
 
@@ -745,7 +941,7 @@ MeshTopology fromVertexTriples( const std::vector<VertId> & vertTriples )
         Triangle tri
         {
             vertTriples[3*t],
-            vertTriples[3*t+1], 
+            vertTriples[3*t+1],
             vertTriples[3*t+2],
             FaceId( int( t ) )
         };

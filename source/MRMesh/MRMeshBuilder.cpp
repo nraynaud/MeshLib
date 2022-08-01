@@ -7,6 +7,8 @@
 #include "MRGTest.h"
 #include "MRPch/MRTBB.h"
 
+#include <unordered_map>
+
 namespace MR
 {
 
@@ -766,7 +768,7 @@ size_t duplicateNonManifoldVertices( std::vector<Triangle>& tris, std::vector<Ve
                                 incidentItems.vertDegree[v] -= 2;
 
                             allPathDebug.insert( allPathDebug.end(), closedPath.begin(), closedPath.end() );
-                            incidentItems.duplicateVertex( closedPath, maxIndex, dups );
+                            incidentItems.duplicateVertex( closedPath, lastUsedVertId, dups );
                             ++duplicatedVerticesCnt;
                             if (nextVertex == vertexDegree.first)
                                 break;
